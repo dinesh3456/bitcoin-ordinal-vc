@@ -1,0 +1,22 @@
+{
+  "name": "bitcoin-ordinal-vc",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@digitalbazaar/vc": "^7.1.0",
+    "@types/node": "^22.10.1",
+    "bitcoin-core": "^4.2.0",
+    "bitcoinjs-lib": "^6.1.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "ord": "^1.0.1",
+    "typescript": "^5.7.2"
+  }
+}
