@@ -7,6 +7,7 @@ A robust system for inscribing and verifying W3C Verifiable Credentials on the B
 The system follows a modular architecture with clear separation of concerns. Each component is designed to be maintainable, testable, and scalable.
 
 ```mermaid
+   sequenceDiagram
     participant C as Client
     participant IS as InscriptionSystem
     participant OS as OrdinalService
