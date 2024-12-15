@@ -23,8 +23,12 @@ export class InscriptionHandler {
       await this.ordinalService.verifyInscription(inscriptionId);
 
       return inscriptionId;
-    } catch (error) {
-      throw new Error(`Credential inscription failed: ${error.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Credential inscription failed: ${error.message}`);
+      } else {
+        throw new Error(`Credential inscription failed: Unknown error`);
+      }
     }
   }
 
@@ -33,8 +37,12 @@ export class InscriptionHandler {
   ): Promise<IdentityVerifiableCredential> {
     try {
       return await this.ordinalService.verifyInscription(inscriptionId);
-    } catch (error) {
-      throw new Error(`Credential retrieval failed: ${error.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Credential inscription failed: ${error.message}`);
+      } else {
+        throw new Error(`Credential inscription failed: Unknown error`);
+      }
     }
   }
 }

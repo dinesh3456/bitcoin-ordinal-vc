@@ -1,11 +1,9 @@
-import * as BitcoinCore from "bitcoin-core";
+import BitcoinCore from "bitcoin-core";
 import * as bitcoin from "bitcoinjs-lib";
 import { ConfigManager } from "../config/config-manager";
 import { KeyManager } from "../utils/key-manager";
 import { Logger } from "../utils/logger";
-import { networks, payments, Psbt } from "bitcoinjs-lib";
-import { config } from "../config";
-
+import { networks, payments, Psbt as _Psbt } from "bitcoinjs-lib"; // Prefix with underscore
 interface UTXO {
   txid: string;
   vout: number;
@@ -13,6 +11,19 @@ interface UTXO {
   witnessUtxo: {
     script: Buffer;
     value: number;
+  };
+}
+
+interface BitcoinCoreConfig {
+  network: string;
+  username: string;
+  password: string;
+  port: number;
+  host: string;
+  version: string;
+  wallet: string;
+  agentOptions: {
+    rejectUnauthorized: boolean;
   };
 }
 
@@ -25,7 +36,7 @@ export class BitcoinService {
   constructor(keyManager: KeyManager) {
     const config = ConfigManager.getInstance().getConfig();
 
-    this.client = new BitcoinCore({
+    const bitcoinCoreConfig: BitcoinCoreConfig = {
       network:
         config.bitcoin.network === bitcoin.networks.testnet
           ? "testnet"
@@ -34,8 +45,15 @@ export class BitcoinService {
       password: config.bitcoin.rpcPassword,
       port: config.bitcoin.network === bitcoin.networks.testnet ? 18332 : 8332,
       host: "127.0.0.1",
-    });
+      version: "0.21.0", // Specify Bitcoin Core version
+      wallet: "", // Default wallet
+      agentOptions: {
+        // Required agent options
+        rejectUnauthorized: false,
+      },
+    };
 
+    this.client = new BitcoinCore(bitcoinCoreConfig);
     this.network = config.bitcoin.network;
     this.keyManager = keyManager;
     this.logger = new Logger("BitcoinService");
@@ -85,17 +103,6 @@ export class BitcoinService {
 
       for (const utxo of unspent) {
         if (totalAmount >= requiredAmount) break;
-
-        const rawTx = await this.client.getRawTransaction(utxo.txid, true);
-        spendableUtxos.push({
-          txid: utxo.txid,
-          vout: utxo.vout,
-          value: Math.floor(utxo.amount * 100000000),
-          witnessUtxo: {
-            script: Buffer.from(utxo.scriptPubKey.hex, "hex"),
-            value: Math.floor(utxo.amount * 100000000),
-          },
-        });
 
         totalAmount += Math.floor(utxo.amount * 100000000);
       }

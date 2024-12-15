@@ -1,3 +1,4 @@
+// src/services/service-manager.ts
 import { BitcoinService } from "./bitcoin";
 import { OrdinalService } from "./ordinal";
 import { KeyManager } from "../utils/key-manager";
@@ -6,10 +7,10 @@ import { Logger } from "../utils/logger";
 
 export class ServiceManager {
   private static instance: ServiceManager;
-  private bitcoinService: BitcoinService;
-  private ordinalService: OrdinalService;
-  private keyManager: KeyManager;
-  private logger: Logger;
+  private bitcoinService!: BitcoinService; // Using definite assignment assertion
+  private ordinalService!: OrdinalService; // Using definite assignment assertion
+  private keyManager!: KeyManager; // Using definite assignment assertion
+  private readonly logger: Logger;
 
   private constructor() {
     this.logger = new Logger("ServiceManager");
@@ -20,16 +21,14 @@ export class ServiceManager {
     try {
       const config = ConfigManager.getInstance().getConfig();
 
-      // Initialize KeyManager
+      // Initialize key manager with seed
       this.keyManager = new KeyManager(
         config.bitcoin.network,
         this.loadOrCreateSeed()
       );
 
-      // Initialize BitcoinService with KeyManager
+      // Initialize services
       this.bitcoinService = new BitcoinService(this.keyManager);
-
-      // Initialize OrdinalService
       this.ordinalService = new OrdinalService(this.bitcoinService);
 
       this.logger.info("Services initialized successfully");
@@ -40,11 +39,13 @@ export class ServiceManager {
   }
 
   private loadOrCreateSeed(): Buffer {
-    const config = ConfigManager.getInstance().getKeyManagementConfig();
-
-    // Implementation for secure seed loading or creation
-    // In a production environment, this should use secure storage
-    return KeyManager.generateSeed();
+    try {
+      //const config = ConfigManager.getInstance().getKeyManagementConfig();
+      return KeyManager.generateSeed();
+    } catch (error) {
+      this.logger.error("Failed to load or create seed", error as Error);
+      throw error;
+    }
   }
 
   static getInstance(): ServiceManager {

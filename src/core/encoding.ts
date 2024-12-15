@@ -1,33 +1,25 @@
+// src/core/encoding.ts
 import { IdentityVerifiableCredential } from "../types/verifiable-credential";
 
 export class VCEncoder {
-  private static readonly VERSION = 0x01;
-  private static readonly HEADER_SIZE = 5; // 1 byte version + 4 bytes length
-
   // Encode VC to binary format
   static encode(credential: IdentityVerifiableCredential): Buffer {
     try {
-      // Pre-validation
       this.validateCredential(credential);
-
-      // Convert to JSON string
       const jsonStr = JSON.stringify(credential);
-
-      // Convert to Buffer
       const buffer = Buffer.from(jsonStr, "utf8");
-
-      // Create header
-      const version = Buffer.from([this.VERSION]);
+      const version = Buffer.from([0x01]);
       const length = Buffer.alloc(4);
       length.writeUInt32BE(buffer.length);
 
-      // Combine all parts
-      const encodedData = Buffer.concat([version, length, buffer]);
-
-      // Add error correction
-      return ErrorCorrection.addChecksum(encodedData);
-    } catch (error) {
-      throw new Error(`Encoding failed: ${error.message}`);
+      const data = Buffer.concat([version, length, buffer]);
+      return ErrorCorrection.addChecksum(data);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Encoding failed: ${error.message}`);
+      } else {
+        throw new Error("Encoding failed: unknown error");
+      }
     }
   }
 
@@ -42,30 +34,24 @@ export class VCEncoder {
       // Remove checksum
       const encodedData = data.slice(0, -4);
 
-      // Check version
-      const version = encodedData[0];
-      if (version !== this.VERSION) {
-        throw new Error(`Unsupported version: ${version}`);
+      if (encodedData[0] !== 0x01) {
+        throw new Error("Unsupported version");
       }
 
-      // Read length
       const length = encodedData.readUInt32BE(1);
-
-      // Extract and parse JSON data
-      const jsonBuffer = encodedData.slice(
-        this.HEADER_SIZE,
-        this.HEADER_SIZE + length
-      );
+      const jsonBuffer = encodedData.slice(5, 5 + length);
       const jsonStr = jsonBuffer.toString("utf8");
+      const credential = JSON.parse(jsonStr);
 
-      const credential = JSON.parse(jsonStr) as IdentityVerifiableCredential;
-
-      // Post-validation
+      // Validate decoded credential
       this.validateCredential(credential);
-
       return credential;
-    } catch (error) {
-      throw new Error(`Decoding failed: ${error.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Decoding failed: ${error.message}`);
+      } else {
+        throw new Error("Decoding failed: unknown error");
+      }
     }
   }
 

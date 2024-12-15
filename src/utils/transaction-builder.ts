@@ -24,7 +24,7 @@ export class TransactionBuilder {
   async createInscriptionTransaction(
     options: InscriptionOptions
   ): Promise<string> {
-    const { data, address, feeRate, witness } = options;
+    const { data, feeRate, witness } = options;
 
     try {
       // Create inscription script
@@ -80,9 +80,17 @@ export class TransactionBuilder {
       const tx = psbt.finalizeAllInputs().extractTransaction();
 
       return tx.toHex();
-    } catch (error) {
-      this.logger.error("Failed to create inscription transaction", error);
-      throw new Error(`Transaction creation failed: ${error.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error("Failed to create inscription transaction", error);
+        throw new Error(`Transaction creation failed: ${error.message}`);
+      } else {
+        this.logger.error(
+          "Failed to create inscription transaction",
+          new Error("Unknown error")
+        );
+        throw new Error("Transaction creation failed: Unknown error");
+      }
     }
   }
 
@@ -127,9 +135,17 @@ export class TransactionBuilder {
       }
 
       this.logger.info("Transaction successfully signed");
-    } catch (error) {
-      this.logger.error("Failed to sign transaction", error);
-      throw new Error(`Transaction signing failed: ${error.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error("Failed to create inscription transaction", error);
+        throw new Error(`Transaction creation failed: ${error.message}`);
+      } else {
+        this.logger.error(
+          "Failed to create inscription transaction",
+          new Error("Unknown error")
+        );
+        throw new Error("Transaction creation failed: Unknown error");
+      }
     }
   }
 }

@@ -32,7 +32,7 @@ export interface IdentityVerifiableCredential {
   };
   issuanceDate: string;
   expirationDate: string;
-  credentialSubject: IdentityCredentialSubject;
+  credentialSubject?: IdentityCredentialSubject;
   proof?: CredentialProof;
   status?: {
     id: string;

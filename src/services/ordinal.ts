@@ -1,3 +1,4 @@
+// src/services/ordinal.ts
 import { BitcoinService } from "./bitcoin";
 import { VCEncoder } from "../core/encoding";
 import { IdentityVerifiableCredential } from "../types/verifiable-credential";
@@ -30,14 +31,13 @@ export class OrdinalService {
         data: encodedData,
         address: inscriptionAddress,
         feeRate: feeRate.feerate,
-        witness: true, // Use segwit for better efficiency
+        witness: true,
       });
 
       // Broadcast transaction
       const txId = await this.bitcoinService.broadcastTransaction(
         inscriptionTx
       );
-
       this.logger.info(`Inscription transaction broadcast successful: ${txId}`);
 
       // Wait for confirmation
@@ -45,8 +45,15 @@ export class OrdinalService {
 
       return txId;
     } catch (error) {
-      this.logger.error("Inscription creation failed", error);
-      throw new Error(`Inscription creation failed: ${error.message}`);
+      if (error instanceof Error) {
+        this.logger.error("Inscription creation failed", error);
+        throw new Error(`Inscription creation failed: ${error.message}`);
+      }
+      this.logger.error(
+        "Inscription creation failed",
+        new Error("Unknown error")
+      );
+      throw new Error("Inscription creation failed: Unknown error");
     }
   }
 
@@ -69,8 +76,15 @@ export class OrdinalService {
       this.logger.info("Inscription verification successful");
       return credential;
     } catch (error) {
-      this.logger.error("Inscription verification failed", error);
-      throw new Error(`Inscription verification failed: ${error.message}`);
+      if (error instanceof Error) {
+        this.logger.error("Inscription verification failed", error);
+        throw new Error(`Inscription verification failed: ${error.message}`);
+      }
+      this.logger.error(
+        "Inscription verification failed",
+        new Error("Unknown error")
+      );
+      throw new Error("Inscription verification failed: Unknown error");
     }
   }
 
@@ -90,7 +104,7 @@ export class OrdinalService {
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 30000)); // Wait 30 seconds
+      await new Promise((resolve) => setTimeout(resolve, 30000));
       attempts++;
     }
 
@@ -103,7 +117,6 @@ export class OrdinalService {
       throw new Error("Transaction not found");
     }
 
-    // Extract inscription data from transaction witness
     const witness = tx.witness?.[1];
     if (!witness) {
       throw new Error("No inscription data found in transaction");
