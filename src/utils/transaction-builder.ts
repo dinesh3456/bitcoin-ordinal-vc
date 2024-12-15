@@ -1,8 +1,9 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { BitcoinService } from "../services/bitcoin";
 import { Logger } from "./logger";
-import { ECPairFactory } from "ecpair"; // Add this import
-import * as tinysecp from "tiny-secp256k1"; // Add this import
+import { ECPairFactory } from "ecpair";
+import * as tinysecp from "tiny-secp256k1";
+
 const ECPair = ECPairFactory(tinysecp);
 
 interface InscriptionOptions {
@@ -27,28 +28,23 @@ export class TransactionBuilder {
     const { data, feeRate, witness } = options;
 
     try {
-      // Create inscription script
       const inscriptionScript = this.createInscriptionScript(data);
-
-      // Calculate required fees
       const estimatedSize = this.estimateTransactionSize(
         inscriptionScript.length,
         witness
       );
       const fee = Math.ceil(estimatedSize * feeRate);
 
-      // Get UTXOs for funding
       const utxos = await this.bitcoinService.getSpendableUtxos(fee);
       if (!utxos.length) {
         throw new Error("Insufficient funds for inscription");
       }
 
-      // Create and sign transaction
       const psbt = new bitcoin.Psbt({
         network: this.bitcoinService.getNetwork(),
       });
 
-      // Add inputs
+      // Add inputs with proper derivation paths
       utxos.forEach((utxo) => {
         psbt.addInput({
           hash: utxo.txid,
@@ -60,37 +56,45 @@ export class TransactionBuilder {
       // Add inscription output
       psbt.addOutput({
         script: inscriptionScript,
-        value: witness ? 546 : 1000, // Minimum dust value
+        value: witness ? 546 : 1000,
       });
 
-      // Add change output if needed
+      // Calculate and add change output if needed
       const totalInput = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
       const change = totalInput - fee - (witness ? 546 : 1000);
 
       if (change > 546) {
+        const changeAddress = await this.bitcoinService.getChangeAddress();
         psbt.addOutput({
-          address: await this.bitcoinService.getChangeAddress(),
+          address: changeAddress,
           value: change,
         });
       }
 
-      // Sign transaction
-      await this.signTransaction(psbt);
+      // Sign all inputs
+      for (let i = 0; i < utxos.length; i++) {
+        await this.bitcoinService.signPsbt(psbt, i);
+      }
+
+      try {
+        psbt.validateSignaturesOfAllInputs((pubkey, msghash, signature) => {
+          return ECPair.fromPublicKey(pubkey).verify(msghash, signature);
+        });
+      } catch (error) {
+        this.logger.error("Failed to validate signatures", error as Error);
+        throw new Error("Failed to validate transaction signatures");
+      }
 
       const tx = psbt.finalizeAllInputs().extractTransaction();
-
       return tx.toHex();
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error("Failed to create inscription transaction", error);
-        throw new Error(`Transaction creation failed: ${error.message}`);
-      } else {
-        this.logger.error(
-          "Failed to create inscription transaction",
-          new Error("Unknown error")
-        );
-        throw new Error("Transaction creation failed: Unknown error");
-      }
+    } catch (error) {
+      this.logger.error(
+        "Failed to create inscription transaction",
+        error as Error
+      );
+      throw new Error(
+        `Transaction creation failed: ${(error as Error).message}`
+      );
     }
   }
 
@@ -99,8 +103,8 @@ export class TransactionBuilder {
       bitcoin.opcodes.OP_FALSE,
       bitcoin.opcodes.OP_IF,
       Buffer.from("ord"),
-      Buffer.from([1]), // protocol version
-      Buffer.from("text/plain"), // content type
+      Buffer.from([1]),
+      Buffer.from("text/plain"),
       bitcoin.opcodes.OP_0,
       data,
       bitcoin.opcodes.OP_ENDIF,
@@ -111,41 +115,10 @@ export class TransactionBuilder {
     scriptSize: number,
     witness: boolean
   ): number {
-    const baseSize = 10; // Version + locktime
+    const baseSize = 10;
     const inputSize = witness ? 68 : 148;
     const outputSize = 34;
     const witnessSize = witness ? scriptSize + 106 : 0;
-
     return baseSize + inputSize + outputSize + witnessSize;
-  }
-
-  private async signTransaction(psbt: bitcoin.Psbt): Promise<void> {
-    try {
-      // Sign all inputs using BitcoinService
-      await this.bitcoinService.signPsbt(psbt);
-
-      // Validate all inputs are signed
-      const isComplete = psbt.validateSignaturesOfAllInputs(
-        (pubkey, msghash, signature) => {
-          return ECPair.fromPublicKey(pubkey).verify(msghash, signature); // Update this line
-        }
-      );
-      if (!isComplete) {
-        throw new Error("Transaction signing validation failed");
-      }
-
-      this.logger.info("Transaction successfully signed");
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error("Failed to create inscription transaction", error);
-        throw new Error(`Transaction creation failed: ${error.message}`);
-      } else {
-        this.logger.error(
-          "Failed to create inscription transaction",
-          new Error("Unknown error")
-        );
-        throw new Error("Transaction creation failed: Unknown error");
-      }
-    }
   }
 }

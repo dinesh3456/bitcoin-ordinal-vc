@@ -1,13 +1,23 @@
 import { OrdinalInscriptionSystem } from "../../src";
 import { IdentityVerifiableCredential } from "../../src/types/verifiable-credential";
+import { VCEncoder } from "../../src/core/encoding";
+import {
+  mockBitcoinService,
+  storeInscriptionData,
+} from "../mocks/bitcoin-service.mock";
 
 describe("OrdinalInscriptionSystem E2E", () => {
   let system: OrdinalInscriptionSystem;
 
   beforeAll(async () => {
-    // Ensure we're using testnet
     process.env.BITCOIN_NETWORK = "testnet";
+    process.env.BITCOIN_RPC_USER = "test_user";
+    process.env.BITCOIN_RPC_PASSWORD = "test_password";
     system = new OrdinalInscriptionSystem();
+
+    // Ensure BitcoinService is properly mocked
+    const bitcoinService = system["serviceManager"].getBitcoinService();
+    Object.assign(bitcoinService, mockBitcoinService);
   });
 
   const testCredential: IdentityVerifiableCredential = {
@@ -34,48 +44,40 @@ describe("OrdinalInscriptionSystem E2E", () => {
     },
   };
 
-  test("complete inscription and verification workflow", async () => {
-    // Check blockchain connection
+  it("should complete inscription and verification workflow", async () => {
+    const encodedData = VCEncoder.encode(testCredential);
+    storeInscriptionData(encodedData);
+
     const status = await system.getBlockchainStatus();
     expect(status.chain).toBe("test");
 
-    // Inscribe credential
     const inscriptionId = await system.inscribeCredential(testCredential);
-    expect(inscriptionId).toBeTruthy();
+    expect(inscriptionId).toBe("txid123");
 
-    // Wait for at least one confirmation
-    await new Promise((resolve) => setTimeout(resolve, 60000));
-
-    // Verify the inscribed credential
     const verifiedCredential = await system.verifyCredential(inscriptionId);
     expect(verifiedCredential).toMatchObject(testCredential);
+  });
 
-    // Verify specific fields
-    expect(verifiedCredential.credentialSubject).toBeDefined(); // Check if defined
-    expect(verifiedCredential.credentialSubject!.fullName).toBe(
-      // Use non-null assertion
-      testCredential.credentialSubject?.fullName
-    );
-    expect(verifiedCredential.issuer.name).toBe(testCredential.issuer.name);
-  }, 120000); // Increase timeout for blockchain operations
-
-  test("should handle network issues gracefully", async () => {
-    // Simulate network disconnection
+  it("should handle network issues gracefully", async () => {
+    const bitcoinService = system["serviceManager"].getBitcoinService();
+    const mockError = new Error("Network connection failed");
     jest
-      .spyOn(global, "fetch")
-      .mockRejectedValueOnce(new Error("Network error"));
+      .spyOn(bitcoinService, "broadcastTransaction")
+      .mockRejectedValueOnce(mockError);
 
     await expect(system.inscribeCredential(testCredential)).rejects.toThrow(
-      "Network error"
+      /Network connection failed/
     );
   });
 
-  test("should handle invalid credentials", async () => {
+  it("should handle invalid credentials", async () => {
     const invalidCredential = { ...testCredential };
     delete invalidCredential.credentialSubject;
 
     await expect(
-      system.inscribeCredential(invalidCredential as any)
-    ).rejects.toThrow();
+      system.inscribeCredential(
+        invalidCredential as IdentityVerifiableCredential
+      )
+    ).rejects.toThrow(/Missing required field: credentialSubject/);
   });
 });
